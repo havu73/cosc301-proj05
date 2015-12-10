@@ -72,27 +72,27 @@ uint16_t print_dirent(struct direntry *dirent, int indent)
 	    break;
     }
 
-    if ((dirent->deAttributes & ATTR_WIN95LFN) == ATTR_WIN95LFN)
+    if ((dirent->deAttributes & ATTR_WIN95LFN) == ATTR_WIN95LFN)//// ASK PROFESSOR: why do I have to mask? 
     {
 	// ignore any long file name extension entries
 	//
-	// printf("Win95 long-filename entry seq 0x%0x\n", dirent->deName[0]);
+	 printf("Win95 long-filename entry seq 0x%0x\n", dirent->deName[0]);
     }
     else if ((dirent->deAttributes & ATTR_VOLUME) != 0) 
     {
 	printf("Volume: %s\n", name);
     } 
-    else if ((dirent->deAttributes & ATTR_DIRECTORY) != 0) 
+    else if ((dirent->deAttributes & ATTR_DIRECTORY) != 0) //if it is a directory
     {
         // don't deal with hidden directories; MacOS makes these
         // for trash directories and such; just ignore them.
-	if ((dirent->deAttributes & ATTR_HIDDEN) != ATTR_HIDDEN)
-        {
-	    print_indent(indent);
-    	    printf("%s/ (directory)\n", name);
-            file_cluster = getushort(dirent->deStartCluster);
-            followclust = file_cluster;
-        }
+		if ((dirent->deAttributes & ATTR_HIDDEN) != ATTR_HIDDEN)
+			{
+				print_indent(indent);
+				printf("%s/ (directory)\n", name);
+				file_cluster = getushort(dirent->deStartCluster);
+				followclust = file_cluster;
+			}
     }
     else 
     {
