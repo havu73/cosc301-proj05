@@ -246,6 +246,7 @@ int is_bad(uint16_t cluster){
 		return FALSE;
 	}
 }
+
 /* is_end_of_file returns true if the FAT entry for cluster indicates
    this is the last cluster in a file */
 int is_end_of_file(uint16_t cluster) 
@@ -292,3 +293,12 @@ uint8_t *cluster_to_addr(uint16_t cluster, uint8_t *image_buf,
     return p;
 }
 
+int is_start(uint16_t cluster, uint8_t * image_buf, struct bpb33* bpb){
+	uint16_t next_cluster=get_fat_entry(cluster,image_buf,bpb);
+	if (next_cluster != CLUST_FREE && (is_valid_cluster(next_cluster,bpb) || is_end_of_file(next_cluster))){
+		return TRUE;
+	}
+	else {
+		return FALSE;
+	}
+}
