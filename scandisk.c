@@ -21,6 +21,11 @@
 #define NO_ORPHAN 0
 #define START 0
 #define NO_START 1
+
+/*
+ * Ha Vu-- Project05 submission
+ * I want to sincerely thank Duy Tran for helping me along, answering some of my questions in this project.
+ * */
 char* itoa(int i, char *b){
     char const digit[] = "0123456789";
     char* p=b;
