@@ -21,7 +21,7 @@
 #define NO_ORPHAN 0
 #define START 0
 #define NO_START 1
-void itoa(int i, char *b){
+char* itoa(int i, char *b){
     char const digit[] = "0123456789";
     char* p = b;
     if(i<0){
@@ -38,7 +38,7 @@ void itoa(int i, char *b){
         *--p = digit[i%10];
         i = i/10;
     }while(i);
-    //return b;
+    return b;
 }
 void print_wrong_dirent(struct direntry* dirent, uint32_t observed_size){
 	int i;
@@ -349,16 +349,27 @@ void check_start_cluster(int * start_list,int *len_list, uint8_t * image_buf, st
 		}
 	}
 }
-
+void get_orphan_file_name(int orphan_count, char* filename){
+	char*count=NULL;
+	count=itoa(orphan_count,count);
+	printf("%s\n",count);
+	strcat(filename,"found");
+	//printf("%s\n",filename);
+	strcat(filename, count);
+	//printf("%s\n",filename);
+	strcat(filename,".dat");
+	printf("%s\n",filename);
+}
 void collect_orphan(int *start_list, int *orphan_list, int * len_list, uint8_t *image_buf, struct bpb33 * bpb){
 	uint32_t cluster_size=(uint32_t) bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
 	int size=0;
 	uint16_t cluster;
-	int count_orphan=0;
+	int orphan_count=0;
+	char filename[13];
 	for (int i=CLUST_FIRST;i<*len_list;i++){
 		size=0;
 		if (orphan_list[i]==ORPHAN && start_list[i]==START && is_start((uint16_t)i,image_buf,bpb)){
-			count_orphan++;
+			orphan_count++;
 			cluster=(uint16_t)i;
 			while (!is_end_of_file(cluster)){
 				if (is_valid_cluster(cluster,bpb)){
@@ -370,16 +381,11 @@ void collect_orphan(int *start_list, int *orphan_list, int * len_list, uint8_t *
 				}
 			}//end while loop
 			struct direntry *root_dirent=(struct direntry *)cluster_to_addr(0,image_buf,bpb);
-			//char filename[13];
-			//char num [3];
-			//itoa(count_orphan,num);
-			//strcat(filename,"found");
-			//strcat(filename, num);
-			//strcat(filename, ".dat");
-			//strcat(filename,"/0");
-			create_dirent(root_dirent,"found.dat", (uint16_t)i, (uint32_t) size,
+			//get_orphan_file_name(orphan_count,filename);
+			create_dirent(root_dirent, "found.dat", (uint16_t)i, (uint32_t) size,
 		   image_buf,bpb);
-		   printf("Created file: Found.dat. File size: %d. Start Cluster: %d\n", (uint)size, (uint)i );
+		   printf("Created file: found.dat.  File size: %d. Start Cluster: %d\n",(uint)size, (uint)i );
+		   //free(filename);
 		}
 	}
 }
