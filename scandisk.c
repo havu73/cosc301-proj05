@@ -14,6 +14,8 @@
 #include "fat.h"
 #include "dos.h"
 
+#define BAD 1
+#define NOT_BAD 0
 void print_wrong_dirent(struct direntry* dirent, uint32_t observed_size){
 	int i;
     char name[9];
@@ -84,23 +86,25 @@ void free_redundant_clusters(uint16_t start_cluster, uint8_t * image_buf, struct
 int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33* bpb){
 	uint16_t followclust=0;
     uint32_t size;
-    uint32_t observed_size=(uint32_t) bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
+    uint32_t observed_size=0;
     uint32_t cluster_size=(uint32_t) bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
     uint16_t cluster;
     uint16_t end_cluster;
     uint16_t start_free_cluster;
     uint16_t file_cluster;
+    uint16_t prev_cluster;
+    int bad_detected=NOT_BAD;
     
     if (dirent->deName[0] == SLOT_EMPTY)
     {
 		/* if we found an empty slot--> return 0, there's nothing left to check*/
-	return followclust;
+	return 0;
     }
 
     if ((dirent->deName[0]) == SLOT_DELETED)
     /* if we found a deleted slot--> return 0, there's nothing left to check*/
     {
-	return followclust;
+	return 0;
     }
 
     if ((dirent->deName[0]) == 0x2E)
@@ -113,17 +117,16 @@ int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33*
     if ((dirent->deAttributes & ATTR_WIN95LFN) == ATTR_WIN95LFN)//// ASK PROFESSOR: why do I have to mask? 
     {
 	// ignore any long file name extension entries
-		return followclust;
+		return 0;
     }
     else if ((dirent->deAttributes & ATTR_VOLUME) != 0) 
     {//ignore volume
-		return followclust;
+		return 0;
     } 
     else {
 		/* if the dirent is either a file or a director--> check the size*/
 		size=getulong(dirent->deFileSize);
 		cluster=getushort(dirent->deStartCluster);
-		cluster=get_fat_entry(cluster,image_buf, bpb);
 		while (!is_end_of_file(cluster)){
 			/*When the cluster is not in the EOF range.
 			 * This is to find the size in the FAT chain
@@ -136,13 +139,21 @@ int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33*
 					 * This is the last cluster in the chain*/
 					end_cluster=cluster;
 					start_free_cluster=get_fat_entry(cluster,image_buf,bpb);
+				}
 			}
-				cluster=get_fat_entry(cluster, image_buf,bpb);
+			if (is_bad(cluster)){
+					bad_detected=BAD;
+					set_fat_entry(prev_cluster, FAT12_MASK & CLUST_EOFS,image_buf, bpb);
+					if ((observed_size-size)<cluster_size){
+						putulong(dirent->deFileSize,observed_size);
+					}
+					printf("BAD entry detected. Previous cluster is: %d\n",(uint)prev_cluster);
+					break;
 			}
-			//else{//really have to be else
-				//break;
-			//}
+			prev_cluster=cluster;
+			cluster=get_fat_entry(cluster,image_buf, bpb);
 		}//end while loop
+		
 		if (size<(observed_size-cluster_size)||size>observed_size){
 			/*
 			 * Wrong size in the dirent(different from the FAT chain)--> 
@@ -155,6 +166,7 @@ int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33*
 				printf("changed the file size back to %d\n",(uint)observed_size);
 			}
 			else{
+				print_wrong_dirent(dirent,observed_size);
 				set_fat_entry(end_cluster,(uint16_t)(CLUST_EOFS),image_buf,bpb);
 				free_redundant_clusters(start_free_cluster,image_buf,bpb);
 			}

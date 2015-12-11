@@ -24,7 +24,7 @@ void set_fat_entry(uint16_t, uint16_t, uint8_t *, struct bpb33 *);
 
 int is_end_of_file(uint16_t);
 int is_valid_cluster(uint16_t, struct bpb33 *);
-
+int is_bad(uint16_t);
 uint8_t *root_dir_addr(uint8_t *, struct bpb33 *);
 
 uint8_t *cluster_to_addr(uint16_t, uint8_t *, struct bpb33 *);

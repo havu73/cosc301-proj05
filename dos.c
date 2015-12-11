@@ -97,7 +97,7 @@ struct bpb33* check_bootsector(uint8_t *image_buf)
     struct bpb33* bpb_aligned;
 
 #ifdef DEBUG
-    fprintf(stderr, "Size of BPB: %lu\n", sizeof(struct bootsector33));
+    fprintf(stderr, "Size of BPB: %u\n", sizeof(struct bootsector33));
 #endif
 
     bootsect = (struct bootsector33*)image_buf;
@@ -238,7 +238,14 @@ int is_valid_cluster(uint16_t cluster, struct bpb33 *bpb)
     return FALSE;
 }
 
-
+int is_bad(uint16_t cluster){
+	if (cluster == (FAT12_MASK & CLUST_BAD)){
+			return TRUE;
+	}
+	else{
+		return FALSE;
+	}
+}
 /* is_end_of_file returns true if the FAT entry for cluster indicates
    this is the last cluster in a file */
 int is_end_of_file(uint16_t cluster) 
