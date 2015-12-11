@@ -45,7 +45,7 @@ void print_wrong_dirent(struct direntry* dirent, uint32_t observed_size){
         // for trash directories and such; just ignore them.
 		if ((dirent->deAttributes & ATTR_HIDDEN) != ATTR_HIDDEN)
 			{
-				printf("%s/ (directory): Wrong_size: %u. Rigth_size based on FAT: %u\n", name,
+				printf("%s/ (directory): deFileSize: %u. FATSize: %u\n", name,
 				getulong(dirent->deFileSize), observed_size);
 			}
 	}
@@ -53,10 +53,33 @@ void print_wrong_dirent(struct direntry* dirent, uint32_t observed_size){
         /*
          * a "regular" file entry
          */
-	printf("%s.%s (starting cluster %d) . Wrong size: %u. Right_size based on FAT: %u\n", 
+	printf("%s.%s (starting cluster %d) . deFileSize: %u. FATSize: %u\n", 
 	       name, extension, getushort(dirent->deStartCluster), getulong(dirent->deFileSize), observed_size);
     }
 }
+
+void free_redundant_clusters(uint16_t start_cluster, uint8_t * image_buf, struct bpb33 * bpb){
+	printf("Start free_redundant_clusters\n");
+	uint32_t cluster_size=(uint32_t) bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
+	uint16_t cluster=start_cluster;
+	uint16_t end_cluster;
+	printf("%d\n", is_end_of_file(cluster));
+	while(!is_end_of_file(cluster)){
+		/*
+		 * set the content of the cluster to blank (0)
+		 * */
+		uint8_t * address=cluster_to_addr(cluster, image_buf,bpb);
+		memset(address,0,cluster_size);
+		printf("Freed cluster %d. Done!\n",(uint)cluster);
+		/*
+		 * mark the FAT entry as free after freeing the cluster*/
+		end_cluster=cluster;
+		cluster=get_fat_entry(cluster, image_buf, bpb);
+		set_fat_entry(end_cluster, CLUST_FREE,image_buf,bpb);
+		printf("Set cluster %d as free. Done!\n", (uint)end_cluster);
+	}
+}
+
 
 int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33* bpb){
 	uint16_t followclust=0;
@@ -64,6 +87,8 @@ int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33*
     uint32_t observed_size=(uint32_t) bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
     uint32_t cluster_size=(uint32_t) bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
     uint16_t cluster;
+    uint16_t end_cluster;
+    uint16_t start_free_cluster;
     uint16_t file_cluster;
     
     if (dirent->deName[0] == SLOT_EMPTY)
@@ -99,30 +124,47 @@ int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33*
 		size=getulong(dirent->deFileSize);
 		cluster=getushort(dirent->deStartCluster);
 		cluster=get_fat_entry(cluster,image_buf, bpb);
-		while (cluster<(FAT12_MASK&CLUST_EOFS)){
+		while (!is_end_of_file(cluster)){
 			/*When the cluster is not in the EOF range.
 			 * This is to find the size in the FAT chain
 			 * */
-			observed_size+=cluster_size; 
-			cluster=get_fat_entry(cluster, image_buf,bpb);
-		}
+			 //change to: Check if it is a bad or free cluster?-> yes-> 
+			 if(is_valid_cluster(cluster,bpb)){
+				observed_size+=cluster_size; 
+				if ((0<=(int) (observed_size-size)) && (int)(observed_size-size)<cluster_size){
+					/*
+					 * This is the last cluster in the chain*/
+					end_cluster=cluster;
+					start_free_cluster=get_fat_entry(cluster,image_buf,bpb);
+			}
+				cluster=get_fat_entry(cluster, image_buf,bpb);
+			}
+			//else{//really have to be else
+				//break;
+			//}
+		}//end while loop
 		if (size<(observed_size-cluster_size)||size>observed_size){
 			/*
 			 * Wrong size in the dirent(different from the FAT chain)--> 
 			 * 1, print the wrong size
-			 * 2, change the dirent (I have not changed yet)
+			 * 2, fix
 			 */
 			print_wrong_dirent(dirent,observed_size);
-			//putulong(dirent->deFileSize,observed_size);
+			if (size>observed_size){
+				putulong(dirent->deFileSize,observed_size);
+				printf("changed the file size back to %d\n",(uint)observed_size);
+			}
+			else{
+				set_fat_entry(end_cluster,(uint16_t)(CLUST_EOFS),image_buf,bpb);
+				free_redundant_clusters(start_free_cluster,image_buf,bpb);
+			}
 		}
 		
 		if ((dirent->deAttributes & ATTR_DIRECTORY)!=0){
 			/*
 			 * If it is a directory-> change followclust as a return value to later follow the directory
 			 * */
-			if ((dirent->deAttributes & ATTR_HIDDEN) != ATTR_HIDDEN){	
-			// don't deal with hidden directories; MacOS makes these
-			// for trash directories and such; just ignore them.
+			if ((dirent->deAttributes & ATTR_HIDDEN) != ATTR_HIDDEN){	//ignore hidden directory
 				file_cluster = getushort(dirent->deStartCluster);
 				followclust = file_cluster;
 			}
@@ -177,7 +219,7 @@ int main(int argc, char** argv) {
 
     image_buf = mmap_file(argv[1], &fd);
     bpb = check_bootsector(image_buf);
-    #define CLUSTER_SIZE bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
+    //#define CLUSTER_SIZE bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
     // your code should start here...
 	traverse_root_scan(image_buf,bpb);
     unmmap_file(image_buf, &fd);
