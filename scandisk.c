@@ -23,11 +23,8 @@
 #define NO_START 1
 char* itoa(int i, char *b){
     char const digit[] = "0123456789";
-    char* p = b;
-    if(i<0){
-        *p++ = '-';
-        i *= -1;
-    }
+    char* p=b;
+
     int shifter = i;
     do{ //Move to where representation ends
         ++p;
@@ -38,7 +35,7 @@ char* itoa(int i, char *b){
         *--p = digit[i%10];
         i = i/10;
     }while(i);
-    return b;
+    return p;
 }
 void print_wrong_dirent(struct direntry* dirent, uint32_t observed_size){
 	int i;
@@ -171,7 +168,7 @@ int check_file_size(struct direntry * dirent, uint8_t * image_buf, struct bpb33*
 					if ((observed_size-size)<cluster_size){
 						putulong(dirent->deFileSize,observed_size);
 					}
-					printf("BAD entry detected. Previous cluster is: %d\n",(uint)prev_cluster);
+					printf("BAD ENTRY DETECTED. Previous cluster is: %d\n\n",(uint)prev_cluster);
 					break;
 			}
 			prev_cluster=cluster;
@@ -349,23 +346,22 @@ void check_start_cluster(int * start_list,int *len_list, uint8_t * image_buf, st
 		}
 	}
 }
-void get_orphan_file_name(int orphan_count, char* filename){
-	char*count=NULL;
-	count=itoa(orphan_count,count);
-	printf("%s\n",count);
+char * get_orphan_file_name(int orphan_count){
+	char * filename=malloc(13*sizeof(char));
+	char count[3];
+	char *o_count=itoa(orphan_count,&count[0]);
 	strcat(filename,"found");
-	//printf("%s\n",filename);
-	strcat(filename, count);
-	//printf("%s\n",filename);
+	strcat(filename, o_count);
 	strcat(filename,".dat");
-	printf("%s\n",filename);
+	filename[13]='\0';
+	return filename;
 }
+
 void collect_orphan(int *start_list, int *orphan_list, int * len_list, uint8_t *image_buf, struct bpb33 * bpb){
 	uint32_t cluster_size=(uint32_t) bpb->bpbBytesPerSec * bpb->bpbSecPerClust;
 	int size=0;
 	uint16_t cluster;
 	int orphan_count=0;
-	char filename[13];
 	for (int i=CLUST_FIRST;i<*len_list;i++){
 		size=0;
 		if (orphan_list[i]==ORPHAN && start_list[i]==START && is_start((uint16_t)i,image_buf,bpb)){
@@ -381,11 +377,10 @@ void collect_orphan(int *start_list, int *orphan_list, int * len_list, uint8_t *
 				}
 			}//end while loop
 			struct direntry *root_dirent=(struct direntry *)cluster_to_addr(0,image_buf,bpb);
-			//get_orphan_file_name(orphan_count,filename);
-			create_dirent(root_dirent, "found.dat", (uint16_t)i, (uint32_t) size,
-		   image_buf,bpb);
-		   printf("Created file: found.dat.  File size: %d. Start Cluster: %d\n",(uint)size, (uint)i );
-		   //free(filename);
+			char * filename=get_orphan_file_name(orphan_count);
+			create_dirent(root_dirent, filename, (uint16_t)i, (uint32_t) size,image_buf,bpb);
+		   printf("Created file: %s.  File size: %d. Start Cluster: %d\n",filename,(uint)size, (uint)i );
+		   free(filename);
 		}
 	}
 }
@@ -407,13 +402,9 @@ int main(int argc, char** argv) {
 		start_list[i]=START;
 		orphan_list[i]=ORPHAN;
 	}
-	//printf("BEFORE CHECKING START CLUSTER\n");
 	check_start_cluster(start_list,&len_list,image_buf,bpb);
-	//printf("DONE CHECKING START CLUSTER\n");
 	traverse_root_scan(image_buf,bpb,orphan_list);
-	//printf("DONE TRAVERSING ROOT\n");
 	collect_orphan(start_list,orphan_list,&len_list,image_buf,bpb);
-	//printf("DONE COLLECTING ORPHAN\n");
     unmmap_file(image_buf, &fd);
     return 0;
 }
